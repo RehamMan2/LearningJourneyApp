@@ -89,6 +89,7 @@ struct OnboardingView: View {
                                 height: 52
                             ) {
                                 viewModel.startLearning()
+                                navigateToActivity = true
                             }
                             .disabled(!viewModel.canStart)
                             .opacity(viewModel.canStart ? 1 : 0.6)
