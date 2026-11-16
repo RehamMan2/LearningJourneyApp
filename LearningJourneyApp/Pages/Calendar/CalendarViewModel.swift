@@ -5,42 +5,57 @@
 //  Created by Reham Aljulayfi on 10/11/2026.
 //
 
+
 import Foundation
 import Observation
 
+@MainActor
 @Observable
 final class CalendarViewModel {
 
-    // Calendar uses Sunday as the first weekday.
+    // استخدام نفس بيانات Activity في جميع الصفحات
+    private let activityViewModel = ActivityViewModel.shared
+
+    // بداية الأسبوع يوم الأحد
     private var calendar: Calendar = {
         var calendar = Calendar.current
         calendar.firstWeekday = 1
         return calendar
     }()
 
-    // Recorded days shared with the calendar.
-    var learningDays: [LearningDay] = []
-
-    // Returns all months from January to the current month.
+    // عرض الأشهر من يناير حتى الشهر الحالي
     var months: [Date] {
+
         let today = Date()
         let year = calendar.component(.year, from: today)
 
         guard let january = calendar.date(
-            from: DateComponents(year: year, month: 1, day: 1)
+            from: DateComponents(
+                year: year,
+                month: 1,
+                day: 1
+            )
         ) else {
             return []
         }
 
-        let currentMonth = calendar.component(.month, from: today)
+        let currentMonth = calendar.component(
+            .month,
+            from: today
+        )
 
         return (0..<currentMonth).compactMap {
-            calendar.date(byAdding: .month, value: $0, to: january)
+            calendar.date(
+                byAdding: .month,
+                value: $0,
+                to: january
+            )
         }
     }
 
-    // Formats the month title, such as January 2026.
+    // عنوان الشهر والسنة
     func monthTitle(for date: Date) -> String {
+
         date.formatted(
             .dateTime
                 .month(.wide)
@@ -49,27 +64,36 @@ final class CalendarViewModel {
         )
     }
 
-    // Returns the weekday labels.
+    // أسماء أيام الأسبوع
     var weekdays: [String] {
         ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
     }
 
-    // Returns empty positions followed by the days of the month.
+    // إنشاء أيام الشهر مع الفراغات الأولى
     func days(for month: Date) -> [Date?] {
+
         guard let range = calendar.range(
             of: .day,
             in: .month,
             for: month
         ),
         let firstDay = calendar.date(
-            from: calendar.dateComponents([.year, .month], from: month)
+            from: calendar.dateComponents(
+                [.year, .month],
+                from: month
+            )
         ) else {
             return []
         }
 
-        let offset = (calendar.component(.weekday, from: firstDay) - 1 + 7) % 7
+        let offset = (
+            calendar.component(.weekday, from: firstDay) - 1 + 7
+        ) % 7
 
-        let emptyDays = Array<Date?>(repeating: nil, count: offset)
+        let emptyDays = Array<Date?>(
+            repeating: nil,
+            count: offset
+        )
 
         let monthDays: [Date?] = range.compactMap { day in
             calendar.date(
@@ -82,16 +106,20 @@ final class CalendarViewModel {
         return emptyDays + monthDays
     }
 
-    // Finds the recorded status of a specific day.
-    func status(for date: Date) -> LearningDayStatus? {
-        learningDays.first {
-            calendar.isDate($0.date, inSameDayAs: date)
-        }?.status
+    // جلب حالة اليوم من ActivityViewModel
+    func status(for date: Date) -> ActivityStatus? {
+
+        // عدم عرض تسجيلات مستقبلية
+        guard calendar.startOfDay(for: date)
+                <= calendar.startOfDay(for: Date()) else {
+            return nil
+        }
+
+        return activityViewModel.status(on: date)
     }
 
-    // Checks whether a date is today.
+    // تحديد اليوم الحالي
     func isToday(_ date: Date) -> Bool {
         calendar.isDateInToday(date)
     }
 }
-

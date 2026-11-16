@@ -130,12 +130,9 @@ final class ActivityViewModel {
             return
         }
 
-        // Tuesday and Wednesday: Learned
-        // Thursday: Freeze
+        //
         let mockDays: [(Int, ActivityStatus)] = [
-            (3, .learned),
-            (4, .learned),
-            (5, .frozen)
+            (1, .learned)
         ]
 
         for (weekday, status) in mockDays {

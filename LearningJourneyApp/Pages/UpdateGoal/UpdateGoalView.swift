@@ -11,17 +11,15 @@ import SwiftUI
 
 struct UpdateGoalView: View {
 
-    // ViewModel الخاص بصفحة تعديل الهدف
+    // ViewModel الخاص بتعديل الهدف
     @State private var viewModel: UpdateGoalViewModel
 
-    // الرجوع إلى الصفحة السابقة
+    // الرجوع للصفحة السابقة
     @Environment(\.dismiss) private var dismiss
-
-    // التحكم في ظهور لوحة المفاتيح
-    @FocusState private var isTopicFocused: Bool
 
     // استقبال بيانات Activity الحالية
     init(activityViewModel: ActivityViewModel) {
+
         _viewModel = State(
             initialValue: UpdateGoalViewModel(
                 activityViewModel: activityViewModel
@@ -42,6 +40,7 @@ struct UpdateGoalView: View {
                     Button {
                         dismiss()
                     } label: {
+
                         Image(systemName: "chevron.left")
                             .font(.system(size: 20))
                             .foregroundStyle(Color("Primary Text"))
@@ -63,7 +62,6 @@ struct UpdateGoalView: View {
 
                     // Update Button
                     Button {
-                        isTopicFocused = false
 
                         if viewModel.hasChanges {
                             viewModel.requestUpdate()
@@ -72,6 +70,7 @@ struct UpdateGoalView: View {
                         }
 
                     } label: {
+
                         Image(systemName: "checkmark")
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(.white)
@@ -85,54 +84,15 @@ struct UpdateGoalView: View {
                     .opacity(viewModel.isValid ? 1 : 0.6)
                 }
 
-                // I WANT
-                Text("I want to learn")
-                    .foregroundStyle(Color("Primary Text"))
-                    .padding(.top, 40)
-
-                TextField(
-                    "Swift",
-                    text: $viewModel.learningTopic
+                // Shared Learning Goal Form
+                LearningGoalForm(
+                    learningTopic: $viewModel.learningTopic,
+                    selectedDuration: $viewModel.selectedDuration,
+                    durationTitle: { $0.title }
                 )
-                .font(.system(size: 18))
-                .tint(Color("Accent Orange"))
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.sentences)
-                .focused($isTopicFocused)
-                .submitLabel(.done)
-                .onSubmit {
-                    isTopicFocused = false
-                }
-
-                Rectangle()
-                    .fill(Color.gray.opacity(0.25))
-                    .frame(height: 1)
-
-                // Duration
-                VStack(alignment: .leading, spacing: 16) {
-
-                    Text("I want to learn it in a")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Color("Primary Text"))
-
-                    HStack(spacing: 12) {
-
-                        ForEach(GoalDuration.allCases) { duration in
-
-                            Buttons(
-                                title: duration.title,
-                                isSelected: viewModel.selectedDuration == duration,
-                                height: 48
-                            ) {
-                                viewModel.selectedDuration = duration
-                            }
-                        }
-                    }
-                }
-                .padding(.top, 16)
+                .padding(.top, 40)
 
                 Spacer(minLength: 40)
-
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -153,12 +113,14 @@ struct UpdateGoalView: View {
             }
 
             Button("Update") {
+
                 if viewModel.confirmUpdate() {
                     dismiss()
                 }
             }
 
         } message: {
+
             Text("If you update now, your streak will start over.")
         }
     }

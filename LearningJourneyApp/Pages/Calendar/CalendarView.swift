@@ -6,32 +6,44 @@
 //
 
 
+
 import SwiftUI
 
 struct CalendarView: View {
 
+    // ViewModel الخاص بالتقويم
     @State private var viewModel = CalendarViewModel()
 
-    // Calendar colors.
-    // Calendar colors from Assets
+    // الرجوع للصفحة السابقة
+    @Environment(\.dismiss) private var dismiss
+
+    // الألوان من Assets
     private let orange = Color("Accent Orange")
     private let blue = Color("Accent Blue")
     private let primaryText = Color("Primary Text")
     private let secondaryText = Color("Secondary Text")
 
     var body: some View {
+
         ZStack {
+
             Color.black.ignoresSafeArea()
 
             VStack(spacing: 0) {
 
-                // Fixed navigation header.
+                // Header ثابت
                 header
 
-                // Scrollable months.
+                // عرض الأشهر من بداية السنة
                 ScrollView {
+
                     LazyVStack(spacing: 24) {
-                        ForEach(viewModel.months, id: \.self) { month in
+
+                        ForEach(
+                            viewModel.months,
+                            id: \.self
+                        ) { month in
+
                             monthSection(month)
                         }
                     }
@@ -41,20 +53,24 @@ struct CalendarView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .preferredColorScheme(.dark)
     }
 
-    // Navigation title and back button.
+    // عنوان الصفحة وزر الرجوع
     private var header: some View {
+
         ZStack {
+
             Text("Activities")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white)
 
             HStack {
+
                 Button {
-                    // Uses the navigation environment to go back.
                     dismiss()
                 } label: {
+
                     Image(systemName: "chevron.left")
                         .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(.white)
@@ -63,7 +79,10 @@ struct CalendarView: View {
                         .clipShape(Circle())
                         .overlay {
                             Circle()
-                                .stroke(Color(white: 0.2), lineWidth: 1)
+                                .stroke(
+                                    Color(white: 0.2),
+                                    lineWidth: 1
+                                )
                         }
                 }
 
@@ -74,23 +93,26 @@ struct CalendarView: View {
         .padding(.horizontal, 20)
     }
 
-    // Dismisses the current screen.
-    @Environment(\.dismiss) private var dismiss
-
-    // Displays one month and its calendar grid.
+    // عرض شهر واحد
     private func monthSection(_ month: Date) -> some View {
+
         VStack(alignment: .leading, spacing: 16) {
 
             Text(viewModel.monthTitle(for: month))
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white)
 
-            // Weekday names.
+            // أسماء أيام الأسبوع
             LazyVGrid(
                 columns: columns,
                 spacing: 0
             ) {
-                ForEach(viewModel.weekdays, id: \.self) { weekday in
+
+                ForEach(
+                    viewModel.weekdays,
+                    id: \.self
+                ) { weekday in
+
                     Text(weekday)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.gray)
@@ -98,19 +120,25 @@ struct CalendarView: View {
                 }
             }
 
-            // Read-only calendar days.
+            // أيام الشهر وحالاتها
             LazyVGrid(
                 columns: columns,
                 spacing: 16
             ) {
+
                 ForEach(
-                    Array(viewModel.days(for: month).enumerated()),
+                    Array(
+                        viewModel.days(for: month).enumerated()
+                    ),
                     id: \.offset
                 ) { _, date in
 
                     if let date {
+
                         dayCell(date)
+
                     } else {
+
                         Color.clear
                             .frame(height: 40)
                     }
@@ -123,56 +151,87 @@ struct CalendarView: View {
         }
     }
 
-    // Seven equally spaced calendar columns.
+    // سبعة أعمدة للتقويم
     private var columns: [GridItem] {
+
         Array(
-            repeating: GridItem(.flexible(), spacing: 4),
+            repeating: GridItem(
+                .flexible(),
+                spacing: 4
+            ),
             count: 7
         )
     }
 
-    // Displays the day number and its status.
+    // عرض رقم اليوم وحالته
     private func dayCell(_ date: Date) -> some View {
+
         let status = viewModel.status(for: date)
         let today = viewModel.isToday(date)
 
-        return Text("\(Calendar.current.component(.day, from: date))")
-            .font(.system(size: 20))
-            .foregroundStyle(dayTextColor(status: status, today: today))
-            .frame(maxWidth: .infinity)
-            .frame(height: 40)
-            .background {
-                Circle()
-                    .fill(dayBackground(status: status, today: today))
-                    .frame(width: 40, height: 40)
-            }
-    }
+        return Text(
+            "\(Calendar.current.component(.day, from: date))"
+        )
+        .font(.system(size: 20))
+        .foregroundStyle(
+            dayTextColor(status: status, today: today)
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: 40)
+        .background {
 
-    // Determines the day number color.
-    private func dayTextColor(
-        status: LearningDayStatus?,
-        today: Bool
-    ) -> Color {
-        if today { return .white }
+            Circle()
+                .fill(
+                    dayBackground(status: status, today: today)
+                )
+                .frame(width: 40, height: 40)
+                .overlay {
 
-        switch status {
-        case .learned: return orange
-        case .freeze: return blue
-        case nil: return .white
+                    // إطار لتمييز اليوم الحالي
+                    if today {
+
+                        Circle()
+                            .stroke(
+                                Color.white.opacity(0.8),
+                                lineWidth: 2
+                            )
+                    }
+                }
         }
     }
 
-    // Determines the day circle background.
-    private func dayBackground(
-        status: LearningDayStatus?,
+    // تحديد لون رقم اليوم
+    private func dayTextColor(
+        status: ActivityStatus?,
         today: Bool
     ) -> Color {
-        if today { return orange }
 
         switch status {
-        case .learned: return orange
-        case .freeze: return blue
-        case nil: return .clear
+
+        case .learned, .frozen:
+            return .white
+
+        case nil:
+            return today ? orange : .white
+        }
+    }
+
+    // تحديد لون خلفية اليوم
+    private func dayBackground(
+        status: ActivityStatus?,
+        today: Bool
+    ) -> Color {
+
+        switch status {
+
+        case .learned:
+            return orange
+
+        case .frozen:
+            return blue
+
+        case nil:
+            return .clear
         }
     }
 }
