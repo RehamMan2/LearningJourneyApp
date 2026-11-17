@@ -6,22 +6,24 @@
 //
 
 
+
 import SwiftUI
 import Combine
 
 struct ActivityView: View {
 
-    // حالة الصفحة والوقت الحالي
+    // Shared ViewModel
     @State private var viewModel = ActivityViewModel.shared
     @State private var now = Date()
 
     @Environment(\.scenePhase) private var scenePhase
 
-    // ألوان الصفحة
+    // Colors from Assets
     private let orange = Color("Accent Orange")
     private let blue = Color("Accent Blue")
+    private let cardBackground = Color("Card Background")
 
-    // تحديث الوقت دوريًا
+    // Update current time every minute
     private let clock = Timer.publish(
         every: 60,
         on: .main,
@@ -38,17 +40,17 @@ struct ActivityView: View {
 
                     VStack(spacing: 0) {
 
-                        // عنوان الصفحة وأزرار التنقل
+                        // Header
                         header
 
-                        // التقويم الأسبوعي
+                        // Activity calendar
                         ActivityCalendar(
                             viewModel: viewModel,
                             now: now
                         )
                         .padding(.top, 24)
 
-                        // بطاقات Streak وFreeze
+                        // Progress cards
                         HStack(spacing: 12) {
 
                             ProgressCard(
@@ -69,15 +71,15 @@ struct ActivityView: View {
 
                         Spacer(minLength: 56)
 
-                        // زر تسجيل التعلم
+                        // Learned button
                         learnedButton
 
                         Spacer(minLength: 48)
 
-                        // زر التجميد
+                        // Freeze button
                         freezeButton
 
-                        // عدد مرات التجميد المستخدمة
+                        // Freeze usage
                         Text(
                             "\(viewModel.usedFreezes(at: now)) out of \(viewModel.duration.freezeLimit) Freezes used"
                         )
@@ -106,7 +108,7 @@ struct ActivityView: View {
         }
     }
 
-    // عنوان الصفحة والتاريخ وأزرار التنقل
+    // Page header
     private var header: some View {
 
         VStack(alignment: .leading, spacing: 8) {
@@ -145,14 +147,14 @@ struct ActivityView: View {
         }
     }
 
-    // شكل الأيقونات الدائرية في الأعلى
+    // Header icon style
     private func headerIcon(_ name: String) -> some View {
 
         Image(systemName: name)
             .font(.system(size: 24))
             .foregroundStyle(.white)
             .frame(width: 48, height: 48)
-            .background(Color("Card Background"))
+            .background(cardBackground)
             .clipShape(Circle())
             .overlay {
                 Circle()
@@ -163,90 +165,91 @@ struct ActivityView: View {
             }
     }
 
-    // زر Learned مع إمكانية التراجع
+    // Learned button without Undo
     private var learnedButton: some View {
 
-        Button {
+        let canLog = viewModel.canLog(at: now)
+        let isLearned = viewModel.status(on: now) == .learned
+
+        return Button {
 
             let currentDate = Date()
-            viewModel.toggleLearned(at: currentDate)
+
+            // Register today's learning
+            viewModel.logLearned(at: currentDate)
             now = currentDate
 
         } label: {
 
-            Text(learnedButtonTitle)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 280, height: 280)
-                .background {
-                    Circle()
-                        .fill(orange)
-                }
-                .frame(maxWidth: .infinity)
+            Text(
+                isLearned
+                ? "Logged as Learned"
+                : "Log as Learned"
+            )
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundStyle(
+                canLog ? Color.white : Color.gray
+            )
+            .frame(width: 280, height: 280)
+            .background {
+                Circle()
+                    .fill(
+                        canLog
+                        ? orange
+                        : cardBackground
+                    )
+            }
+            .frame(maxWidth: .infinity)
         }
-        .disabled(!viewModel.canLog(at: now))
-        .opacity(viewModel.canLog(at: now) ? 1 : 0.5)
+        .buttonStyle(.plain)
+        .disabled(!canLog)
     }
 
-    // نص زر Learned حسب حالة اليوم
-    private var learnedButtonTitle: String {
-
-        switch viewModel.status(on: now) {
-        case .learned:
-            return "Undo Learned"
-        case .frozen:
-            return "Day Frozen"
-        case nil:
-            return "Log as Learned"
-        }
-    }
-
-    // زر Freeze مع إمكانية التراجع
+    // Freeze button without Undo
     private var freezeButton: some View {
 
-        Button {
+        let canFreeze = viewModel.canFreeze(at: now)
+        let isFrozen = viewModel.status(on: now) == .frozen
+
+        return Button {
 
             let currentDate = Date()
-            viewModel.toggleFreeze(at: currentDate)
+
+            // Register today's Freeze
+            viewModel.logFreeze(at: currentDate)
             now = currentDate
 
         } label: {
 
-            Text(freezeButtonTitle)
-                .font(.system(size: 20))
-                .foregroundStyle(
-                    viewModel.canFreeze(at: now)
-                    ? .white : .gray
-                )
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .background {
-                    Capsule()
-                        .fill(
-                            viewModel.canFreeze(at: now)
-                            ? blue
-                            : Color("Card Background")
-                        )
-                }
-                .overlay {
-                    Capsule()
-                        .stroke(
-                            .white.opacity(0.3),
-                            lineWidth: 1
-                        )
-                }
+            Text(
+                isFrozen
+                ? "Day Frozen"
+                : "Freeze for a day"
+            )
+            .font(.system(size: 20))
+            .foregroundStyle(
+                canFreeze ? Color.white : Color.gray
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background {
+                Capsule()
+                    .fill(
+                        canFreeze
+                        ? blue
+                        : cardBackground
+                    )
+            }
+            .overlay {
+                Capsule()
+                    .stroke(
+                        .white.opacity(0.3),
+                        lineWidth: 1
+                    )
+            }
         }
-        .disabled(!viewModel.canFreeze(at: now))
-    }
-
-    // نص زر Freeze حسب حالة اليوم
-    private var freezeButtonTitle: String {
-
-        if viewModel.status(on: now) == .frozen {
-            return "Undo Freeze"
-        }
-
-        return "Freeze for a day"
+        .buttonStyle(.plain)
+        .disabled(!canFreeze)
     }
 }
 

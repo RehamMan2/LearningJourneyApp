@@ -7,10 +7,10 @@
 
 
 
+
+
 import Foundation
 import Observation
-
-// Learning goal duration and Freeze allowance
 
 // Possible activity statuses
 enum ActivityStatus: String, Codable {
@@ -29,7 +29,7 @@ struct ActivityRecord: Codable {
 @Observable
 final class ActivityViewModel {
 
-    // Shared instance across pages
+    // Shared ViewModel across pages
     static let shared = ActivityViewModel()
 
     // Activity records
@@ -39,7 +39,7 @@ final class ActivityViewModel {
     private(set) var learningTopic = "Swift"
     private(set) var duration: LearningDuration = .week
 
-    // Goal start and reset dates
+    // Goal dates
     private(set) var goalStartedAt = Date()
     private(set) var resetAt = Date.distantPast
 
@@ -56,7 +56,7 @@ final class ActivityViewModel {
         let learningTopic: String?
     }
 
-    // Load saved data or create mock data
+    // Load saved data or create mock records
     init() {
         if !load() {
             addMockData()
@@ -72,12 +72,12 @@ final class ActivityViewModel {
     // Get the status of a specific day
     func status(on date: Date) -> ActivityStatus? {
 
-        records.first {
+        records.first { record in
             calendar.isDate(
-                $0.date,
+                record.date,
                 inSameDayAs: date
             )
-            && $0.timestamp >= resetAt
+            && record.timestamp >= resetAt
         }?.status
     }
 
@@ -100,7 +100,7 @@ final class ActivityViewModel {
         }
     }
 
-    // Create default activity records
+    // Create sample activity records
     private func addMockData() {
 
         let now = Date()
@@ -112,9 +112,12 @@ final class ActivityViewModel {
             return
         }
 
-        //
+        // Sample days: Tuesday and Wednesday Learned,
+        // Thursday Frozen
         let mockDays: [(Int, ActivityStatus)] = [
-            (1, .learned)
+            (3, .learned),
+            (4, .learned),
+            (5, .frozen)
         ]
 
         for (weekday, status) in mockDays {
@@ -153,8 +156,10 @@ final class ActivityViewModel {
         switch duration {
         case .week:
             component = .weekOfYear
+
         case .month:
             component = .month
+
         case .year:
             component = .year
         }
@@ -174,7 +179,6 @@ final class ActivityViewModel {
             return 0
         }
 
-        // Compare dates from the start of the day
         let periodStart = max(
             currentPeriod.start,
             startOfDay(goalStartedAt)
@@ -199,109 +203,80 @@ final class ActivityViewModel {
         )
     }
 
-    // Check whether Learned can be selected
+    // Learned is available unless today is already Learned
     func canLog(at now: Date) -> Bool {
-        status(on: now) != .frozen
+        status(on: now) != .learned
     }
 
-    // Check whether Freeze can be selected
+    // Freeze is available unless today is already Frozen,
+    // and there is remaining allowance
     func canFreeze(at now: Date) -> Bool {
 
-        // Allow undoing today's Freeze
-        if status(on: now) == .frozen {
-            return true
-        }
-
-        // Allow Freeze only for an empty day
-        return status(on: now) == nil
-            && remainingFreezes(at: now) > 0
+        status(on: now) != .frozen
+        && remainingFreezes(at: now) > 0
     }
 
-    // Log Learned or undo it
-    func toggleLearned(at now: Date = Date()) {
+    // Register Learned or switch from Freeze to Learned
+    func logLearned(at now: Date = Date()) {
+
+        guard canLog(at: now) else {
+            return
+        }
 
         let today = startOfDay(now)
 
-        switch status(on: now) {
-
-        case .learned:
-
-            // Remove today's Learned record
-            records.removeAll { record in
-                calendar.isDate(
-                    record.date,
-                    inSameDayAs: today
-                )
-                && record.status == .learned
-                && record.timestamp >= resetAt
-            }
-
-        case .frozen:
-
-            // Cannot log Learned on a frozen day
-            return
-
-        case nil:
-
-            // Add today's Learned record
-            records.append(
-                ActivityRecord(
-                    date: today,
-                    timestamp: now,
-                    status: .learned
-                )
+        // Remove the previous record for today
+        records.removeAll { record in
+            calendar.isDate(
+                record.date,
+                inSameDayAs: today
             )
+            && record.timestamp >= resetAt
         }
+
+        // Register Learned
+        records.append(
+            ActivityRecord(
+                date: today,
+                timestamp: now,
+                status: .learned
+            )
+        )
 
         save()
     }
 
-    // Log Freeze or undo it
-    func toggleFreeze(at now: Date = Date()) {
+    // Register Freeze or switch from Learned to Freeze
+    func logFreeze(at now: Date = Date()) {
+
+        guard canFreeze(at: now) else {
+            return
+        }
 
         let today = startOfDay(now)
 
-        switch status(on: now) {
-
-        case .frozen:
-
-            // Undo Freeze and restore the allowance
-            records.removeAll { record in
-                calendar.isDate(
-                    record.date,
-                    inSameDayAs: today
-                )
-                && record.status == .frozen
-                && record.timestamp >= resetAt
-            }
-
-        case .learned:
-
-            // Cannot Freeze an already learned day
-            return
-
-        case nil:
-
-            // Check available Freeze allowance
-            guard remainingFreezes(at: now) > 0 else {
-                return
-            }
-
-            // Add today's Freeze record
-            records.append(
-                ActivityRecord(
-                    date: today,
-                    timestamp: now,
-                    status: .frozen
-                )
+        // Remove the previous record for today
+        records.removeAll { record in
+            calendar.isDate(
+                record.date,
+                inSameDayAs: today
             )
+            && record.timestamp >= resetAt
         }
 
-        // Persist updated records
+        // Register Freeze
+        records.append(
+            ActivityRecord(
+                date: today,
+                timestamp: now,
+                status: .frozen
+            )
+        )
+
         save()
     }
 
-    // Calculate the our deadline
+    // Calculate deadline after a recorded day
     private func deadline(after date: Date) -> Date? {
 
         guard let nextDay = calendar.date(
@@ -312,7 +287,7 @@ final class ActivityViewModel {
             return nil
         }
 
-        // 32 hours from the start of the next day
+        // 32 hours from the beginning of the next day
         return nextDay.addingTimeInterval(
             32 * 60 * 60
         )
@@ -356,16 +331,25 @@ final class ActivityViewModel {
 
         return count
     }
-    
-    
-    // Save the initial learning goal without resetting activity records
+
+    // Set the initial learning goal
     func setInitialGoal(_ goal: LearningGoal) {
 
-        learningTopic = goal.topic
+        let cleanedTopic = goal.topic.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+
+        guard !cleanedTopic.isEmpty else {
+            return
+        }
+
+        learningTopic = cleanedTopic
         duration = goal.duration
         goalStartedAt = goal.startDate
+        resetAt = goal.startDate
 
-        // Save the selected goal and duration
+        records.removeAll()
+
         save()
     }
 
