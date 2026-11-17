@@ -46,7 +46,7 @@ struct LearningGoalForm<Duration: Hashable & CaseIterable>: View {
             VStack(alignment: .leading, spacing: 16) {
 
                 Text("I want to learn it in a")
-                    .font(.system(size: 16))
+                    .font(.system(size: 18))
                     .foregroundStyle(Color("Primary Text"))
 
                 HStack(spacing: 12) {
@@ -59,7 +59,8 @@ struct LearningGoalForm<Duration: Hashable & CaseIterable>: View {
                         Buttons(
                             title: durationTitle(duration),
                             isSelected: selectedDuration == duration,
-                            height: 48
+                            width: 65,
+                            height: 40,
                         ) {
                             selectedDuration = duration
                         }

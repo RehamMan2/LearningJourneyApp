@@ -16,6 +16,7 @@ struct Buttons: View {
     var width: CGFloat? = nil
     var height: CGFloat = 48
     var fontSize: CGFloat = 18
+    var fontWeight: Font.Weight = .medium
     var action: () -> Void
 
     var body: some View {
@@ -30,6 +31,11 @@ struct Buttons: View {
 
             buttonContent
                 .buttonStyle(.glass)
+                .tint(
+                    isSelected
+                        ? Color("Accent Orange")
+                        : Color.gray.opacity(0.2)
+                )
         }
     }
 

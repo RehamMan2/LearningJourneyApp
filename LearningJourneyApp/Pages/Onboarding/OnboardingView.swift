@@ -59,8 +59,9 @@ struct OnboardingView: View {
 
                         Buttons(
                             title: "Start Learning",
-                            width: 180,
-                            height: 52
+                            width: 160,
+                            height: 45,
+                            fontWeight: .bold,
                         ) {
                             viewModel.startLearning()
                             navigateToActivity = true
