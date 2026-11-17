@@ -9,6 +9,7 @@
 
 
 
+
 import Foundation
 import Observation
 
@@ -112,7 +113,7 @@ final class ActivityViewModel {
             return
         }
 
-        // Sample days: Tuesday and Wednesday Learned,
+        // Tuesday and Wednesday Learned
         // Thursday Frozen
         let mockDays: [(Int, ActivityStatus)] = [
             (3, .learned),
@@ -156,10 +157,8 @@ final class ActivityViewModel {
         switch duration {
         case .week:
             component = .weekOfYear
-
         case .month:
             component = .month
-
         case .year:
             component = .year
         }
@@ -185,18 +184,15 @@ final class ActivityViewModel {
         )
 
         return records.filter { record in
-
             record.status == .frozen
             && record.date >= periodStart
             && record.date < currentPeriod.end
             && record.timestamp >= resetAt
-
         }.count
     }
 
     // Calculate remaining Freeze Days
     func remainingFreezes(at now: Date) -> Int {
-
         max(
             0,
             duration.freezeLimit - usedFreezes(at: now)
@@ -206,14 +202,14 @@ final class ActivityViewModel {
     // Learned is available unless today is already Learned
     func canLog(at now: Date) -> Bool {
         status(on: now) != .learned
+        && goalResult(at: now) == nil
     }
 
-    // Freeze is available unless today is already Frozen,
-    // and there is remaining allowance
+    // Freeze is available unless today is already Frozen
     func canFreeze(at now: Date) -> Bool {
-
         status(on: now) != .frozen
         && remainingFreezes(at: now) > 0
+        && goalResult(at: now) == nil
     }
 
     // Register Learned or switch from Freeze to Learned
@@ -225,7 +221,7 @@ final class ActivityViewModel {
 
         let today = startOfDay(now)
 
-        // Remove the previous record for today
+        // Remove previous record for today
         records.removeAll { record in
             calendar.isDate(
                 record.date,
@@ -255,7 +251,7 @@ final class ActivityViewModel {
 
         let today = startOfDay(now)
 
-        // Remove the previous record for today
+        // Remove previous record for today
         records.removeAll { record in
             calendar.isDate(
                 record.date,
@@ -332,6 +328,74 @@ final class ActivityViewModel {
         return count
     }
 
+    // Get the calendar period for the current goal
+    private func goalPeriod() -> DateInterval? {
+        period(containing: goalStartedAt)
+    }
+
+    // Count learned days within the goal period
+    func goalLearnedDays() -> Int {
+
+        guard let interval = goalPeriod() else {
+            return 0
+        }
+
+        let learnedDates = records
+            .filter { record in
+                record.status == .learned
+                && record.date >= interval.start
+                && record.date < interval.end
+                && record.timestamp >= resetAt
+                && record.timestamp < interval.end
+            }
+            .map { startOfDay($0.date) }
+
+        return Set(learnedDates).count
+    }
+
+    // Calculate total days in the goal period
+    func goalTotalDays() -> Int {
+
+        guard let interval = goalPeriod() else {
+            return 0
+        }
+
+        return calendar.dateComponents(
+            [.day],
+            from: interval.start,
+            to: interval.end
+        ).day ?? 0
+    }
+
+    // Evaluate the goal only after the period ends
+    func goalResult(at now: Date = Date()) -> GoalResult? {
+
+        guard let interval = goalPeriod() else {
+            return nil
+        }
+
+        // Do not show a result before the period ends
+        guard now >= interval.end else {
+            return nil
+        }
+
+        let totalDays = goalTotalDays()
+
+        guard totalDays > 0 else {
+            return nil
+        }
+
+        let learnedDays = goalLearnedDays()
+
+        // More than 50% means Goal Completed
+        if learnedDays > totalDays / 2 {
+            return .completed
+        }
+
+        // Otherwise Goal Not Met
+        return .notMet
+    }
+
     // Set the initial learning goal
     func setInitialGoal(_ goal: LearningGoal) {
 
@@ -348,6 +412,7 @@ final class ActivityViewModel {
         goalStartedAt = goal.startDate
         resetAt = goal.startDate
 
+        // Start with fresh activity records
         records.removeAll()
 
         save()
@@ -365,12 +430,10 @@ final class ActivityViewModel {
             in: .whitespacesAndNewlines
         )
 
-        // Prevent empty learning topics
         guard !cleanedTopic.isEmpty else {
             return false
         }
 
-        // Detect actual changes
         let topicChanged = cleanedTopic != learningTopic
         let durationChanged = newDuration != duration
 
@@ -378,7 +441,6 @@ final class ActivityViewModel {
             return false
         }
 
-        // Update goal information
         learningTopic = cleanedTopic
         duration = newDuration
 

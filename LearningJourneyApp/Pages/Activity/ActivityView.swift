@@ -7,6 +7,7 @@
 
 
 
+
 import SwiftUI
 import Combine
 
@@ -14,7 +15,9 @@ struct ActivityView: View {
 
     // Shared ViewModel
     @State private var viewModel = ActivityViewModel.shared
+
     @State private var now = Date()
+    @State private var showSetGoal = false
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -34,76 +37,130 @@ struct ActivityView: View {
 
         NavigationStack {
 
-            GeometryReader { geometry in
+            Group {
 
-                ScrollView {
+                // Show goal result when the period ends
+                if let result = viewModel.goalResult(at: now) {
 
                     VStack(spacing: 0) {
 
-                        // Header
                         header
+                            .padding(.horizontal, 20)
+                            .padding(.top, 24)
 
-                        // Activity calendar
-                        ActivityCalendar(
-                            viewModel: viewModel,
+                        GoalResultView(
+                            result: result,
+                            activityViewModel: viewModel,
                             now: now
-                        )
-                        .padding(.top, 24)
-
-                        // Progress cards
-                        HStack(spacing: 12) {
-
-                            ProgressCard(
-                                icon: "flame.fill",
-                                count: viewModel.streak(at: now),
-                                title: "Learned",
-                                color: orange
-                            )
-
-                            ProgressCard(
-                                icon: "snowflake",
-                                count: viewModel.usedFreezes(at: now),
-                                title: "Freezed",
-                                color: blue
-                            )
+                        ) {
+                            showSetGoal = true
                         }
-                        .padding(.top, 16)
-
-                        Spacer(minLength: 56)
-
-                        // Learned button
-                        learnedButton
-
-                        Spacer(minLength: 48)
-
-                        // Freeze button
-                        freezeButton
-
-                        // Freeze usage
-                        Text(
-                            "\(viewModel.usedFreezes(at: now)) out of \(viewModel.duration.freezeLimit) Freezes used"
-                        )
-                        .font(.system(size: 16))
-                        .foregroundStyle(.gray)
-                        .padding(.top, 16)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 24)
-                    .frame(
-                        minHeight: geometry.size.height,
-                        alignment: .top
-                    )
+
+                } else {
+
+                    // Show normal Activity page
+                    activityContent
                 }
             }
             .background(.black)
             .toolbar(.hidden, for: .navigationBar)
+
+            // Open SetGoalView after goal result
+            .sheet(isPresented: $showSetGoal) {
+
+                NavigationStack {
+
+                    SetGoalView { topic, duration in
+
+                        // Create and save a new learning goal
+                        let newGoal = LearningGoal(
+                            topic: topic,
+                            duration: duration,
+                            startDate: Date()
+                        )
+
+                        viewModel.setInitialGoal(newGoal)
+
+                        // Refresh page after saving
+                        now = Date()
+                    }
+                }
+            }
         }
         .onReceive(clock) { date in
             now = date
         }
         .onChange(of: scenePhase) { _, phase in
+
             if phase == .active {
                 now = Date()
+            }
+        }
+    }
+
+    // Normal Activity page
+    private var activityContent: some View {
+
+        GeometryReader { geometry in
+
+            ScrollView {
+
+                VStack(spacing: 0) {
+
+                    // Header
+                    header
+
+                    // Activity calendar
+                    ActivityCalendar(
+                        viewModel: viewModel,
+                        now: now
+                    )
+                    .padding(.top, 24)
+
+                    // Progress cards
+                    HStack(spacing: 12) {
+
+                        ProgressCard(
+                            icon: "flame.fill",
+                            count: viewModel.streak(at: now),
+                            title: "Learned",
+                            color: orange
+                        )
+
+                        ProgressCard(
+                            icon: "snowflake",
+                            count: viewModel.usedFreezes(at: now),
+                            title: "Freezed",
+                            color: blue
+                        )
+                    }
+                    .padding(.top, 16)
+
+                    Spacer(minLength: 56)
+
+                    // Learned button
+                    learnedButton
+
+                    Spacer(minLength: 48)
+
+                    // Freeze button
+                    freezeButton
+
+                    // Freeze usage
+                    Text(
+                        "\(viewModel.usedFreezes(at: now)) out of \(viewModel.duration.freezeLimit) Freezes used"
+                    )
+                    .font(.system(size: 16))
+                    .foregroundStyle(.gray)
+                    .padding(.top, 16)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
+                .frame(
+                    minHeight: geometry.size.height,
+                    alignment: .top
+                )
             }
         }
     }
@@ -128,7 +185,9 @@ struct ActivityView: View {
                 }
 
                 NavigationLink {
-                    UpdateGoalView(activityViewModel: viewModel)
+                    UpdateGoalView(
+                        activityViewModel: viewModel
+                    )
                 } label: {
                     headerIcon("square.and.pencil")
                 }
@@ -192,6 +251,7 @@ struct ActivityView: View {
             )
             .frame(width: 280, height: 280)
             .background {
+
                 Circle()
                     .fill(
                         canLog
@@ -233,6 +293,7 @@ struct ActivityView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 56)
             .background {
+
                 Capsule()
                     .fill(
                         canFreeze
@@ -241,6 +302,7 @@ struct ActivityView: View {
                     )
             }
             .overlay {
+
                 Capsule()
                     .stroke(
                         .white.opacity(0.3),
@@ -256,3 +318,4 @@ struct ActivityView: View {
 #Preview {
     ActivityView()
 }
+
