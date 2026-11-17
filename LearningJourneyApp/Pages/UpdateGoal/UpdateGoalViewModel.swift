@@ -18,7 +18,7 @@ final class UpdateGoalViewModel {
 
     // القيم التي يعدل عليها المستخدم
     var learningTopic: String
-    var selectedDuration: GoalDuration
+    var selectedDuration: LearningDuration
 
     // التحكم في ظهور رسالة التأكيد
     var showUpdateAlert = false

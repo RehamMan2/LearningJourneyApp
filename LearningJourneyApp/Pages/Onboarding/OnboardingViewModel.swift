@@ -7,25 +7,27 @@
 
 import Foundation
 
-enum LearningDuration: String, CaseIterable, Identifiable {
-    case week = "Week"
-    case month = "Month"
-    case year = "Year"
-
-    var id: Self { self }
-}
-
 @Observable
 class OnboardingViewModel {
+
+    // User input
     var learningTopic = ""
     var selectedDuration: LearningDuration = .week
 
+    // Checks if the user entered a valid topic
     var canStart: Bool {
         !learningTopic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // Create and save the user's learning goal
     func startLearning() {
-        print("Topic: \(learningTopic)")
-        print("Duration: \(selectedDuration.rawValue)")
-    }
-}
+
+        let goal = LearningGoal(
+            topic: learningTopic.trimmingCharacters(in: .whitespacesAndNewlines),
+            duration: selectedDuration,
+            startDate: Date()
+        )
+
+        // Share the goal with Activity
+        ActivityViewModel.shared.setInitialGoal(goal)
+    }}

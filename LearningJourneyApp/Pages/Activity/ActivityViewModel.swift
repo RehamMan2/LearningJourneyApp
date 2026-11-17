@@ -11,24 +11,6 @@ import Foundation
 import Observation
 
 // Learning goal duration and Freeze allowance
-enum GoalDuration: String, Codable, CaseIterable, Identifiable {
-
-    case week, month, year
-
-    var id: String { rawValue }
-
-    var title: String {
-        rawValue.capitalized
-    }
-
-    var freezeLimit: Int {
-        switch self {
-        case .week: return 2
-        case .month: return 8
-        case .year: return 96
-        }
-    }
-}
 
 // Possible activity statuses
 enum ActivityStatus: String, Codable {
@@ -55,7 +37,7 @@ final class ActivityViewModel {
 
     // Current learning goal
     private(set) var learningTopic = "Swift"
-    private(set) var duration: GoalDuration = .week
+    private(set) var duration: LearningDuration = .week
 
     // Goal start and reset dates
     private(set) var goalStartedAt = Date()
@@ -68,7 +50,7 @@ final class ActivityViewModel {
     // Saved data structure
     private struct SavedData: Codable {
         let records: [ActivityRecord]
-        let duration: GoalDuration
+        let duration: LearningDuration
         let goalStartedAt: Date
         let resetAt: Date
         let learningTopic: String?
@@ -374,12 +356,24 @@ final class ActivityViewModel {
 
         return count
     }
+    
+    
+    // Save the initial learning goal without resetting activity records
+    func setInitialGoal(_ goal: LearningGoal) {
+
+        learningTopic = goal.topic
+        duration = goal.duration
+        goalStartedAt = goal.startDate
+
+        // Save the selected goal and duration
+        save()
+    }
 
     // Update the learning goal
     @discardableResult
     func updateGoal(
         topic newTopic: String,
-        duration newDuration: GoalDuration,
+        duration newDuration: LearningDuration,
         at now: Date = Date()
     ) -> Bool {
 
