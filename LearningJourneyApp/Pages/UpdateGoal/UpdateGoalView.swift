@@ -103,25 +103,69 @@ struct UpdateGoalView: View {
         .preferredColorScheme(.dark)
 
         // Alert عند تغيير الهدف
-        .alert(
-            "Update goal",
-            isPresented: $viewModel.showUpdateAlert
-        ) {
+        .overlay {
+            if viewModel.showUpdateAlert {
+                ZStack {
+                    // تعتيم الخلفية
+                    Color.black.opacity(0.55)
+                        .ignoresSafeArea()
 
-            Button("Dismiss", role: .cancel) {
-                viewModel.showUpdateAlert = false
-            }
+                    VStack(alignment: .leading, spacing: 0) {
 
-            Button("Update") {
+                        // عنوان التنبيه
+                        Text("Update goal")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(.white)
 
-                if viewModel.confirmUpdate() {
-                    dismiss()
+                        // وصف التنبيه
+                        Text("If you update now, your streak will start over.")
+                            .font(.system(size: 20))
+                            .foregroundStyle(Color.gray)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 12)
+
+                        // أزرار التنبيه
+                        HStack(spacing: 8) {
+
+                            Button {
+                                viewModel.showUpdateAlert = false
+                            } label: {
+                                Text("Dismiss")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(width: 140, height: 60)
+                                    .background(Color(red: 0.22, green: 0.22, blue: 0.24))
+                                    .clipShape(Capsule())
+                            }
+
+                            Button {
+                                if viewModel.confirmUpdate() {
+                                    dismiss()
+                                }
+                            } label: {
+                                Text("Update")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 140, height: 60)
+                                    .background(Color("Accent Orange"))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        .padding(.top, 24)
+                                        }
+                    .padding(20)
+                    .frame(width: 320)
+                    .background(
+                        RoundedRectangle(cornerRadius: 32)
+                            .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 32)
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                    }
                 }
+                .zIndex(1)
             }
-
-        } message: {
-
-            Text("If you update now, your streak will start over.")
-        }
-    }
+        }    }
 }
