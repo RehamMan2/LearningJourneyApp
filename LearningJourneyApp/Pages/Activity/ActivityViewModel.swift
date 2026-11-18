@@ -57,14 +57,11 @@ final class ActivityViewModel {
         let learningTopic: String?
     }
 
-    // Load saved data or create mock records
+    // Load saved user progress when the app starts
     init() {
-        if !load() {
-            addMockData()
-            save()
-        }
+        load()
     }
-
+    
     // Get the beginning of a day
     func startOfDay(_ date: Date) -> Date {
         calendar.startOfDay(for: date)
@@ -101,53 +98,6 @@ final class ActivityViewModel {
         }
     }
 
-    // Create sample activity records
-    private func addMockData() {
-
-        let now = Date()
-
-        guard let week = calendar.dateInterval(
-            of: .weekOfYear,
-            for: now
-        ) else {
-            return
-        }
-
-        // Tuesday and Wednesday Learned
-        // Thursday Frozen
-        let mockDays: [(Int, ActivityStatus)] = [
-            (3, .learned),
-            (4, .learned),
-            (5, .frozen)
-        ]
-
-        for (weekday, status) in mockDays {
-
-            var components = calendar.dateComponents(
-                [.yearForWeekOfYear, .weekOfYear],
-                from: week.start
-            )
-
-            components.weekday = weekday
-
-            guard let date = calendar.date(from: components),
-                  date <= now else {
-                continue
-            }
-
-            records.append(
-                ActivityRecord(
-                    date: startOfDay(date),
-                    timestamp: date,
-                    status: status
-                )
-            )
-        }
-
-        if let firstDate = records.map(\.timestamp).min() {
-            goalStartedAt = firstDate
-        }
-    }
 
     // Get the current Freeze allowance period
     private func period(containing date: Date) -> DateInterval? {
