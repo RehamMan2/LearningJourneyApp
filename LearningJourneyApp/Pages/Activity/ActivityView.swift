@@ -40,7 +40,12 @@ struct ActivityView: View {
             Group {
 
                 // Show goal result when the period ends
-                if let result = viewModel.goalResult(at: now) {
+                
+                if true {
+
+                    let result: GoalResult = .notMet
+                    
+//                    if let result = viewModel.goalResult(at: now) {
 
                     VStack(spacing: 0) {
 
