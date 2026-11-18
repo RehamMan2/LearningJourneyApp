@@ -9,9 +9,16 @@ import SwiftUI
 
 @main
 struct LearningJourneyAppApp: App {
+
+    @State private var viewModel = ActivityViewModel.shared
+
     var body: some Scene {
         WindowGroup {
-            OnboardingView()
+            if viewModel.hasLearningGoal {
+                ActivityView()
+            } else {
+                OnboardingView()
+            }
         }
     }
 }

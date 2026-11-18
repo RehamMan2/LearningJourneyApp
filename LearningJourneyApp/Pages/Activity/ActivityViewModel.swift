@@ -6,80 +6,149 @@
 //
 
 
-
-
-
-
 import Foundation
 import Observation
 
-// Possible activity statuses
+// Possible activity statuses.
 enum ActivityStatus: String, Codable {
     case learned
     case frozen
 }
 
-// Record for each logged day
+// Record for each logged day.
 struct ActivityRecord: Codable {
     let date: Date
     let timestamp: Date
     let status: ActivityStatus
 }
 
+// Stores a completed goal with its activity records.
+struct CompletedGoal: Codable, Identifiable {
+    let goal: LearningGoal
+    let records: [ActivityRecord]
+
+    var id: UUID {
+        goal.id
+    }
+}
+
 @MainActor
 @Observable
 final class ActivityViewModel {
 
-    // Shared ViewModel across pages
+    // Shared ViewModel across pages.
     static let shared = ActivityViewModel()
 
-    // Activity records
+    // Records belonging to the current goal only.
     var records: [ActivityRecord] = []
 
-    // Current learning goal
+    // History of completed learning goals.
+    private(set) var completedGoals: [CompletedGoal] = []
+
+    // Current learning goal.
     private(set) var learningTopic = "Swift"
     private(set) var duration: LearningDuration = .week
 
-    // Goal dates
+    // Check whether a learning goal exists.
+    private(set) var hasLearningGoal = false
+
+    // Current goal dates.
     private(set) var goalStartedAt = Date()
     private(set) var resetAt = Date.distantPast
 
-    // Calendar and storage
+    // Calendar and storage.
     private let calendar = Calendar.current
     private let storageKey = "learning.activity.v3"
 
-    // Saved data structure
+    // Protect existing data when loading fails.
+    private(set) var hasStorageError = false
+    private var canSaveData = true
+
+    // Saved data structure.
     private struct SavedData: Codable {
         let records: [ActivityRecord]
         let duration: LearningDuration
         let goalStartedAt: Date
         let resetAt: Date
         let learningTopic: String?
+        let hasLearningGoal: Bool?
+
+        // Optional for compatibility with older saved data.
+        let completedGoals: [CompletedGoal]?
     }
 
-    // Load saved user progress when the app starts
+    // Load saved progress when the app starts.
     init() {
-        load()
+        let loadedSuccessfully = load()
+
+        if !loadedSuccessfully {
+            canSaveData = false
+            hasStorageError = true
+        }
     }
-    
-    // Get the beginning of a day
+
+    // Get the beginning of a day.
     func startOfDay(_ date: Date) -> Date {
         calendar.startOfDay(for: date)
     }
 
-    // Get the status of a specific day
-    func status(on date: Date) -> ActivityStatus? {
+    // Check whether a record belongs to the current goal.
+    private func isCurrentRecord(
+        _ record: ActivityRecord
+    ) -> Bool {
+        record.timestamp >= resetAt
+    }
 
-        records.first { record in
+    // Get the current goal's records.
+    private var currentRecords: [ActivityRecord] {
+        records.filter { isCurrentRecord($0) }
+    }
+
+    // Get the current goal status for a date.
+    private func currentStatus(
+        on date: Date
+    ) -> ActivityStatus? {
+        currentRecords.first { record in
             calendar.isDate(
                 record.date,
                 inSameDayAs: date
             )
-            && record.timestamp >= resetAt
         }?.status
     }
 
-    // Get all dates in the current week
+    // Get a date's status for the calendar.
+    // Current records have priority over historical records.
+    func status(on date: Date) -> ActivityStatus? {
+
+        if let status = currentStatus(on: date) {
+            return status
+        }
+
+        // Do not show historical records on or after
+        // the current goal's starting day.
+        guard date < startOfDay(goalStartedAt) else {
+            return nil
+        }
+
+        // Search completed goals without changing them.
+        for completedGoal in completedGoals.reversed() {
+
+            if let record = completedGoal.records.first(
+                where: {
+                    calendar.isDate(
+                        $0.date,
+                        inSameDayAs: date
+                    )
+                }
+            ) {
+                return record.status
+            }
+        }
+
+        return nil
+    }
+
+    // Get all dates in the current week.
     func weekDates(at now: Date) -> [Date] {
 
         guard let week = calendar.dateInterval(
@@ -98,17 +167,20 @@ final class ActivityViewModel {
         }
     }
 
-
-    // Get the current Freeze allowance period
-    private func period(containing date: Date) -> DateInterval? {
+    // Get the allowance period for a date.
+    private func period(
+        containing date: Date
+    ) -> DateInterval? {
 
         let component: Calendar.Component
 
         switch duration {
         case .week:
             component = .weekOfYear
+
         case .month:
             component = .month
+
         case .year:
             component = .year
         }
@@ -119,7 +191,7 @@ final class ActivityViewModel {
         )
     }
 
-    // Calculate used Freeze Days
+    // Calculate used Freeze Days for the current goal.
     func usedFreezes(at now: Date) -> Int {
 
         guard let currentPeriod = period(
@@ -133,15 +205,14 @@ final class ActivityViewModel {
             startOfDay(goalStartedAt)
         )
 
-        return records.filter { record in
+        return currentRecords.filter { record in
             record.status == .frozen
             && record.date >= periodStart
             && record.date < currentPeriod.end
-            && record.timestamp >= resetAt
         }.count
     }
 
-    // Calculate remaining Freeze Days
+    // Calculate remaining Freeze Days.
     func remainingFreezes(at now: Date) -> Int {
         max(
             0,
@@ -149,20 +220,26 @@ final class ActivityViewModel {
         )
     }
 
-    // Learned is available unless today is already Learned
+    // Learned is available unless today is already Learned.
     func canLog(at now: Date) -> Bool {
-        status(on: now) != .learned
+        !hasStorageError
+        && hasLearningGoal
+        && now >= goalStartedAt
+        && currentStatus(on: now) != .learned
         && goalResult(at: now) == nil
     }
 
-    // Freeze is available unless today is already Frozen
+    // Freeze is available unless today is already Frozen.
     func canFreeze(at now: Date) -> Bool {
-        status(on: now) != .frozen
+        !hasStorageError
+        && hasLearningGoal
+        && now >= goalStartedAt
+        && currentStatus(on: now) != .frozen
         && remainingFreezes(at: now) > 0
         && goalResult(at: now) == nil
     }
 
-    // Register Learned or switch from Freeze to Learned
+    // Register Learned or switch from Freeze to Learned.
     func logLearned(at now: Date = Date()) {
 
         guard canLog(at: now) else {
@@ -171,16 +248,16 @@ final class ActivityViewModel {
 
         let today = startOfDay(now)
 
-        // Remove previous record for today
+        // Remove the current goal's record for today.
         records.removeAll { record in
             calendar.isDate(
                 record.date,
                 inSameDayAs: today
             )
-            && record.timestamp >= resetAt
+            && isCurrentRecord(record)
         }
 
-        // Register Learned
+        // Register Learned.
         records.append(
             ActivityRecord(
                 date: today,
@@ -192,7 +269,7 @@ final class ActivityViewModel {
         save()
     }
 
-    // Register Freeze or switch from Learned to Freeze
+    // Register Freeze or switch from Learned to Freeze.
     func logFreeze(at now: Date = Date()) {
 
         guard canFreeze(at: now) else {
@@ -201,16 +278,16 @@ final class ActivityViewModel {
 
         let today = startOfDay(now)
 
-        // Remove previous record for today
+        // Remove the current goal's record for today.
         records.removeAll { record in
             calendar.isDate(
                 record.date,
                 inSameDayAs: today
             )
-            && record.timestamp >= resetAt
+            && isCurrentRecord(record)
         }
 
-        // Register Freeze
+        // Register Freeze.
         records.append(
             ActivityRecord(
                 date: today,
@@ -222,7 +299,7 @@ final class ActivityViewModel {
         save()
     }
 
-    // Calculate deadline after a recorded day
+    // Calculate the deadline after a recorded day.
     private func deadline(after date: Date) -> Date? {
 
         guard let nextDay = calendar.date(
@@ -233,19 +310,18 @@ final class ActivityViewModel {
             return nil
         }
 
-        // 32 hours from the beginning of the next day
+        // 32 hours from the beginning of the next day.
         return nextDay.addingTimeInterval(
             32 * 60 * 60
         )
     }
 
-    // Calculate current Streak
+    // Calculate the current goal's Streak.
     func streak(at now: Date) -> Int {
 
-        let sortedRecords = records
+        let sortedRecords = currentRecords
             .filter { record in
                 record.timestamp <= now
-                && record.timestamp >= resetAt
             }
             .sorted {
                 $0.timestamp < $1.timestamp
@@ -278,24 +354,23 @@ final class ActivityViewModel {
         return count
     }
 
-    // Get the calendar period for the current goal
+    // Get the calendar period for the current goal.
     private func goalPeriod() -> DateInterval? {
         period(containing: goalStartedAt)
     }
 
-    // Count learned days within the goal period
+    // Count Learned days for the current goal only.
     func goalLearnedDays() -> Int {
 
         guard let interval = goalPeriod() else {
             return 0
         }
 
-        let learnedDates = records
+        let learnedDates = currentRecords
             .filter { record in
                 record.status == .learned
                 && record.date >= interval.start
                 && record.date < interval.end
-                && record.timestamp >= resetAt
                 && record.timestamp < interval.end
             }
             .map { startOfDay($0.date) }
@@ -303,7 +378,7 @@ final class ActivityViewModel {
         return Set(learnedDates).count
     }
 
-    // Calculate total days in the goal period
+    // Calculate total days in the goal period.
     func goalTotalDays() -> Int {
 
         guard let interval = goalPeriod() else {
@@ -317,14 +392,17 @@ final class ActivityViewModel {
         ).day ?? 0
     }
 
-    // Evaluate the goal only after the period ends
-    func goalResult(at now: Date = Date()) -> GoalResult? {
+    // Evaluate the goal after its period ends.
+    func goalResult(
+        at now: Date = Date()
+    ) -> GoalResult? {
 
-        guard let interval = goalPeriod() else {
+        guard hasLearningGoal,
+              let interval = goalPeriod() else {
             return nil
         }
 
-        // Do not show a result before the period ends
+        // Do not show results before the period ends.
         guard now >= interval.end else {
             return nil
         }
@@ -337,17 +415,21 @@ final class ActivityViewModel {
 
         let learnedDays = goalLearnedDays()
 
-        // More than 50% means Goal Completed
+        // More than 50% means Goal Completed.
         if learnedDays > totalDays / 2 {
             return .completed
         }
 
-        // Otherwise Goal Not Met
         return .notMet
     }
 
-    // Set the initial learning goal
+    // Set the initial learning goal.
     func setInitialGoal(_ goal: LearningGoal) {
+
+        guard !hasStorageError,
+              !hasLearningGoal else {
+            return
+        }
 
         let cleanedTopic = goal.topic.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -362,19 +444,28 @@ final class ActivityViewModel {
         goalStartedAt = goal.startDate
         resetAt = goal.startDate
 
-        // Start with fresh activity records
+        // Clear records only for the first goal.
         records.removeAll()
+
+        hasLearningGoal = true
 
         save()
     }
 
-    // Update the learning goal
+    // Update the current goal.
+    // Completed goals are preserved in history.
+    // All records of an unfinished goal are discarded.
     @discardableResult
     func updateGoal(
         topic newTopic: String,
         duration newDuration: LearningDuration,
         at now: Date = Date()
     ) -> Bool {
+
+        guard !hasStorageError,
+              hasLearningGoal else {
+            return false
+        }
 
         let cleanedTopic = newTopic.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -391,33 +482,64 @@ final class ActivityViewModel {
             return false
         }
 
+        // Preserve the old goal only if it was completed.
+        if goalResult(at: now) == .completed {
+
+            let completedGoal = LearningGoal(
+                topic: learningTopic,
+                duration: duration,
+                startDate: goalStartedAt,
+                endDate: now
+            )
+
+            completedGoals.append(
+                CompletedGoal(
+                    goal: completedGoal,
+                    records: currentRecords
+                )
+            )
+        }
+
+        // Remove every record belonging to the old
+        // current goal, including previous days.
+        records.removeAll()
+
+        // Apply the updated goal.
         learningTopic = cleanedTopic
         duration = newDuration
 
-        // Reset Streak and Freeze records
+        // Restart the current goal from today.
         goalStartedAt = now
         resetAt = now
-        records.removeAll()
 
+        // Streak and Freeze usage now start at zero.
         save()
 
         return true
     }
 
-    // Save activity data
+    // Save activity data and completed goals.
     private func save() {
+
+        guard canSaveData && !hasStorageError else {
+            print("Saving blocked to protect existing data.")
+            return
+        }
 
         let savedData = SavedData(
             records: records,
             duration: duration,
             goalStartedAt: goalStartedAt,
             resetAt: resetAt,
-            learningTopic: learningTopic
+            learningTopic: learningTopic,
+            hasLearningGoal: hasLearningGoal,
+            completedGoals: completedGoals
         )
 
         guard let encodedData = try? JSONEncoder().encode(
             savedData
         ) else {
+            print("Failed to encode activity data.")
             return
         }
 
@@ -427,19 +549,28 @@ final class ActivityViewModel {
         )
     }
 
-    // Load previously saved activity data
+    // Load saved activity data.
     @discardableResult
     private func load() -> Bool {
 
+        // First launch: no saved data exists.
         guard let storedData = UserDefaults.standard.data(
             forKey: storageKey
-        ),
-        let decodedData = try? JSONDecoder().decode(
+        ) else {
+            return true
+        }
+
+        // Decode existing saved data.
+        guard let decodedData = try? JSONDecoder().decode(
             SavedData.self,
             from: storedData
         ) else {
+            print("Failed to decode saved activity data.")
             return false
         }
+
+        // Restore the current learning goal.
+        hasLearningGoal = decodedData.hasLearningGoal ?? true
 
         records = decodedData.records
         duration = decodedData.duration
@@ -447,6 +578,10 @@ final class ActivityViewModel {
         resetAt = decodedData.resetAt
         learningTopic = decodedData.learningTopic ?? "Swift"
 
+        // Older saved data may not have goal history.
+        completedGoals = decodedData.completedGoals ?? []
+
         return true
     }
 }
+
