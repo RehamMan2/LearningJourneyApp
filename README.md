@@ -1,5 +1,5 @@
 
-# LearningApp 📚
+# Learning Journey App 📚
 
 An iOS application designed to help users build consistent learning habits and track their progress.
 
