@@ -377,6 +377,29 @@ final class ActivityViewModel {
 
         return Set(learnedDates).count
     }
+    
+    
+    
+    // Count Freeze Days within the current goal period.
+    func goalFrozenDays() -> Int {
+
+        guard let interval = goalPeriod() else {
+            return 0
+        }
+
+        let frozenDates = currentRecords
+            .filter { record in
+                record.status == .frozen
+                && record.date >= interval.start
+                && record.date < interval.end
+                && record.timestamp < interval.end
+            }
+            .map { startOfDay($0.date) }
+
+        return Set(frozenDates).count
+    }
+
+    
 
     // Calculate total days in the goal period.
     func goalTotalDays() -> Int {

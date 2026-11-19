@@ -45,7 +45,7 @@ struct Buttons: View {
         Button(action: action) {
 
             Text(title)
-                .font(.system(size: fontSize, weight: .medium))
+                .font(.system(size: fontSize, weight: fontWeight))
                 .frame(width: width, height: height)
                 .padding(.horizontal, width == nil ? 20 : 0)
 
